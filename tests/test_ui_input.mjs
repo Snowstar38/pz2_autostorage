@@ -1,0 +1,11 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+const base=new URL('../src/Autostorage/UI/UIGameface/',import.meta.url);
+const html=fs.readFileSync(new URL('BreederKeeperHUD.html',base),'utf8');
+const main=fs.readFileSync(new URL('breederkeeper.js',base),'utf8');
+const retired=fs.readFileSync(new URL('breederkeeper.input.js',base),'utf8');
+assert.ok(!html.includes('breederkeeper.input.js'));
+assert.ok(!/setInputController|syncInput|onShouldBlockInput|createGameOwnerControlContext/.test(main));
+vm.runInNewContext(retired,{});
+console.log('UI leaves Escape and camera input entirely to the native game');

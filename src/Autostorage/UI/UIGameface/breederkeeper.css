@@ -1,0 +1,93 @@
+/* Original cream/olive styling, inspired by the park HUD palette. */
+#bk-launch{position:absolute;left:3.25rem;top:1.6rem;width:2.65rem;height:2.65rem;min-height:0;z-index:99990;display:flex;align-items:center;justify-content:center;border:.18rem solid #e8e5c9;border-radius:50%;background:#6a7950;color:#fff9e5;font:bold .95rem StandardFont, sans-serif;cursor:pointer}
+#bk-launch:hover{background:#8c9b67}
+#bk-panel{position:absolute;left:3.4rem;top:4.8rem;width:30rem;z-index:99991;display:flex;flex-direction:column;border:.18rem solid #e3dcc1;border-radius:.8rem;background:#eee3c9;color:#514e3e;font:1rem StandardFont, sans-serif}
+#bk-panel *{box-sizing:border-box}
+#bk-panel .bk-header{display:flex;flex-direction:row;align-items:center;padding:.65rem .8rem;background:#727f4b;color:#fffbea;border-radius:.6rem .6rem 0 0}
+#bk-panel .bk-heading{display:flex;flex-direction:column;flex:1}
+#bk-panel h2{font:bold 1.4rem StandardFont, sans-serif;margin:0}
+#bk-panel h3{font:bold 1.1rem StandardFont, sans-serif;margin:.8rem 0 .4rem}
+#bk-panel p{display:block;margin:.3rem 0;line-height:1.2}
+#bk-panel .bk-subtitle{font:.85rem StandardFont, sans-serif;color:#eeeacb;margin-top:.2rem}
+#bk-panel .bk-content{display:flex;flex-direction:column;padding:.5rem .8rem}
+#bk-panel [role=button],#bk-panel [role=checkbox]{display:flex;flex-direction:row;align-items:center;justify-content:center;flex-shrink:0;min-height:2rem;padding:.4rem .6rem;border:.1rem solid #c8bd9b;border-radius:.45rem;background:#fff8e7;color:#52543b;font:.95rem StandardFont, sans-serif;cursor:pointer;margin:.15rem .25rem .15rem 0}
+#bk-panel [role=button]:hover,#bk-panel [role=checkbox]:hover{background:#e6eacd;border-color:#99a46e}
+#bk-panel [aria-disabled=true]{opacity:.4;cursor:default}
+#bk-panel .bk-header-button,#bk-panel .bk-close{min-height:1.8rem;padding:.3rem .5rem;background:#f2edda;border:0;font:.85rem StandardFont, sans-serif;margin-left:.25rem}
+#bk-panel .bk-close{border-radius:50%;width:1.8rem;height:1.8rem;padding:0;font:bold .8rem StandardFont, sans-serif}
+#bk-panel .bk-row{display:flex;flex-direction:row;align-items:center;flex-wrap:wrap}
+#bk-panel .bk-summary{margin-bottom:.2rem}
+#bk-panel .bk-mode{display:flex;align-items:center;background:#596e54;color:#fffde8;border-radius:.3rem;padding:.25rem .45rem;margin-right:.6rem;font:bold .85rem StandardFont, sans-serif;letter-spacing:.06rem}
+#bk-panel .bk-status{font:.9rem StandardFont, sans-serif}
+#bk-panel .bk-small{font:.8rem StandardFont, sans-serif;color:#74725f}
+#bk-panel .bk-save-note{font:.8rem StandardFont, sans-serif;color:#88682e}
+#bk-panel .bk-alert{font:.85rem StandardFont, sans-serif;color:#973d31;padding:.3rem .4rem;background:#f4d8b5;border-radius:.3rem}
+#bk-panel .bk-transfer-controls{margin:.4rem 0}
+#bk-panel .bk-primary{background:#6c8055;color:#fffce9;border-color:#6c8055}
+#bk-panel .bk-tabs{border-bottom:.15rem solid #929b6a;margin:.25rem 0}
+#bk-panel .bk-tab{flex:1;background:#ddd6b9;border:0;border-radius:.5rem .5rem 0 0;margin:0 .25rem 0 0;padding:.5rem}
+#bk-panel .bk-tab-active{background:#7c8c58;color:white}
+#bk-panel .bk-list-summary{font:bold .95rem StandardFont, sans-serif;margin:.6rem 0 .25rem}
+#bk-panel .bk-bulk [role=button]{flex:1;font:.82rem StandardFont, sans-serif;min-height:1.85rem;padding:.35rem}
+#bk-panel .bk-list{display:flex;flex-direction:column;margin:.45rem 0 .15rem}
+#bk-panel .bk-check-row{display:flex;justify-content:flex-start;width:100%;min-height:2.6rem;background:#fff8e8;border-color:#d7ceb3;margin:.1rem 0;padding:.25rem .5rem}
+#bk-panel .bk-selected{border-color:#8b9865}
+#bk-panel .bk-checkbox{display:flex;align-items:center;justify-content:center;width:1.5rem;height:1.5rem;flex-shrink:0;border:.12rem solid #a7ac83;border-radius:.25rem;background:#f5f0dc;color:#fff;font:bold .85rem StandardFont, sans-serif;margin-right:.65rem}
+#bk-panel .bk-checked{background:#7c905b;border-color:#7c905b}
+#bk-panel .bk-enclosure-info{display:flex;flex-direction:column;flex:1}
+#bk-panel .bk-enclosure-name{font:bold .95rem StandardFont, sans-serif}
+#bk-panel .bk-enclosure-species{font:.78rem StandardFont, sans-serif;color:#807d67;margin-top:.2rem}
+#bk-panel .bk-rule-state{font:.75rem StandardFont, sans-serif;color:#7b805d;margin-left:.45rem}
+#bk-panel .bk-pages{justify-content:center;margin:.2rem 0}
+#bk-panel .bk-pages span{font:.8rem StandardFont, sans-serif;margin:0 .5rem}
+#bk-panel .bk-pages [role=button]{font:.8rem StandardFont, sans-serif;min-height:1.7rem;padding:.25rem .5rem}
+#bk-panel .bk-help{font:.82rem StandardFont, sans-serif;color:#68734f;border-top:.1rem solid #d2c9aa;padding-top:.5rem;margin-top:.4rem}
+#bk-panel .bk-storage{justify-content:space-between;font:.78rem StandardFont, sans-serif;color:#78735c;padding:.4rem 0 .15rem}
+#bk-panel .bk-log{font:.82rem StandardFont, sans-serif;background:#e4e7cc;border-radius:.3rem;padding:.35rem .45rem;color:#596744}
+#bk-panel .bk-empty{font:.9rem StandardFont, sans-serif;padding:1rem;color:#78735c}
+
+
+#bk-panel .bk-loading{font:1.1rem StandardFont, sans-serif;padding:1.4rem 0 .6rem;color:#6b7a4d}
+
+
+
+#bk-panel .bk-pop-count{display:flex;flex-direction:column;flex-shrink:0;margin-left:.3rem;color:#737959;font:.7rem StandardFont, sans-serif;line-height:1.2;text-align:right;white-space:nowrap}
+#bk-launch .bk-launch-icon{display:block;width:1.65rem;height:1.65rem}
+#bk-launch .bk-crate-fallback{display:none;position:relative;width:1.35rem;height:1.25rem;border:.13rem solid #fff9e5;border-radius:.1rem}
+#bk-launch .bk-crate-fallback:before,#bk-launch .bk-crate-fallback:after{content:'';position:absolute;left:-.02rem;top:.48rem;width:1.13rem;border-top:.12rem solid #fff9e5;transform:rotate(42deg)}
+#bk-launch .bk-crate-fallback:after{transform:rotate(-42deg)}
+#bk-launch .bk-launch-tooltip{position:absolute;left:3rem;top:.25rem;z-index:99996;display:none;align-items:center;justify-content:center;min-width:6.4rem;padding:.35rem .55rem;border:.1rem solid #788359;border-radius:.35rem;background:#faf1d9;color:#535b3c;font:.85rem StandardFont, sans-serif;white-space:nowrap;pointer-events:none}
+#bk-panel .bk-species-icon{display:block;width:2rem;height:2rem;flex-shrink:0;margin-right:.45rem;border:.08rem solid #d6d0b3;border-radius:50%;background:#eee3cf;object-fit:contain}
+
+/* Installed game skins; our layout and mouse controls stay independent. */
+#bk-panel{right:auto;bottom:auto;border:0;border-radius:1rem;background:var(--whiteBrown20,#fff6e5);color:var(--brown,#705e4e);font-family:StandardFont,sans-serif;box-shadow:0 .15rem .45rem rgba(40,35,22,.22)}
+#bk-panel .bk-header{background:transparent;color:var(--brown,#705e4e);padding:.8rem .9rem .45rem;border-radius:1rem 1rem 0 0}
+#bk-panel h2{font-size:1.45rem;color:var(--brown,#705e4e)}
+#bk-panel .bk-content{padding:.35rem .9rem .65rem}
+#bk-panel [role=button]{position:relative;z-index:0;border:0;background:transparent;border-radius:2rem;color:var(--brown,#705e4e);font-weight:bold}
+#bk-panel .bk-native-button-bg{z-index:-1;pointer-events:none}
+#bk-panel [role=button]:hover{background:transparent}
+#bk-panel .bk-header-button,#bk-panel .bk-close{background:transparent;color:var(--brown,#705e4e)}
+#bk-panel .bk-header-button .bk-native-button-bg,#bk-panel .bk-close .bk-native-button-bg{background:transparent}
+#bk-panel .bk-close{font-size:1rem;font-weight:normal}
+#bk-panel .bk-primary{color:var(--white,#fff8e7)}
+#bk-panel .bk-primary .bk-native-button-bg{background:var(--green,#566846)}
+#bk-panel .bk-primary:hover .bk-native-button-bg{background:var(--pink,#f7b5c5)}
+#bk-panel .bk-primary:hover{color:var(--brown,#705e4e)}
+#bk-panel .bk-tabs{border-bottom:.1rem solid rgba(110,90,65,.15);margin:.35rem 0 .25rem}
+#bk-panel .bk-tab{border-radius:.7rem .7rem 0 0;color:var(--brown,#705e4e);font-weight:normal}
+#bk-panel .bk-tab .bk-native-button-bg{border-radius:.7rem .7rem 0 0;background:var(--whiteBrown30,#eee4d1)}
+#bk-panel .bk-tab-active .bk-native-button-bg{background:var(--pink,#f7b5c5)}
+#bk-panel .bk-tab-active{color:var(--brown,#705e4e);font-weight:bold}
+#bk-panel .bk-check-row{border:.08rem solid rgba(110,90,65,.16);border-radius:.65rem;background:var(--white,#fffaf0);color:var(--brown,#705e4e);padding:.25rem .5rem}
+#bk-panel .bk-check-row>.bk-native-button-bg{display:none}
+#bk-panel .bk-check-row:hover{background:var(--whiteBrown10,#fff7e8);border-color:var(--pink,#f7b5c5)}
+#bk-panel .bk-checkbox{border:.12rem solid rgba(110,90,65,.25);background:transparent;color:var(--brown,#705e4e);border-radius:.3rem}
+#bk-panel .bk-checked{border-color:var(--green,#566846);background:var(--green,#566846);color:var(--white,#fff8e7)}
+#bk-panel .bk-mode{border-radius:1rem;font-size:.8rem;letter-spacing:0}
+#bk-panel .bk-enclosure-species,#bk-panel .bk-small,#bk-panel .bk-pop-count,#bk-panel .bk-list-summary{color:var(--brown,#705e4e);opacity:.75}
+
+/* Native Tick uses installed SVG shapes, independent of font coverage. */
+#bk-panel .bk-checkbox{position:relative;border:0;background:transparent;padding:0}
+#bk-panel .bk-checked{background:transparent;border:0}
+#bk-panel .bk-checkbox .Tick_background,#bk-panel .bk-checkbox .Tick_tick{left:0;top:0;width:100%;height:100%;pointer-events:none}

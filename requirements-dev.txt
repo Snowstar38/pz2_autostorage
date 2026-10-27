@@ -1,0 +1,5 @@
+lupa==2.8
+numpy==2.4.2
+imageio==2.38.1
+pillow==12.3.0
+bitarray==3.12.3

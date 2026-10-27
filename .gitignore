@@ -1,0 +1,11 @@
+.venv/
+.tools/
+build/
+dist/
+__pycache__/
+*.py[cod]
+*.log
+*.zip
+research/
+upstream/
+backups/
