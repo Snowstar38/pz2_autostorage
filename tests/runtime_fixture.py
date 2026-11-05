@@ -7,10 +7,10 @@ def runtime():
     lua = LuaRuntime(unpack_returned_tuples=True)
     main = Path(__file__).resolve().parents[1] / 'src/Autostorage/Main'
     for name in ('policy', 'persistence'):
-        lua.globals().source = (main / f'breederkeeper.{name}.lua').read_text()
-        lua.execute(f"local s=source; package.preload['BreederKeeper.{name.title()}']=function() return assert(load(s))() end")
+        lua.globals().source = (main / f'autostorage.{name}.lua').read_text()
+        lua.execute(f"local s=source; package.preload['Autostorage.{name.title()}']=function() return assert(load(s))() end")
     lua.execute(r'''
-counts={}; transfers={}; receivers={}; serialization={}; fullPublishes=0; deltaPublishes=0
+contraceptions={}; counts={}; transfers={}; receivers={}; serialization={}; fullPublishes=0; deltaPublishes=0
 function hit(k) counts[k]=(counts[k] or 0)+1 end
 api={messaging={MsgType_AnimalAgedFromJuvenileToAdultMessage=1,
  MsgType_ExhibitAnimalBornMessage=2,MsgType_ExhibitAnimalAgeChangedMessage=3},
@@ -46,12 +46,19 @@ function apis.animals:GetSpecies(id) hit('species'); return animals[id].sSpecies
 function apis.animals:IsAlive(id) hit('alive'); return animals[id] and animals[id].bAlive==true end
 function apis.animals:CanSendAnimalToTradeCentre(id) hit('canSend'); return animals[id].canSend~=false end
 function apis.animals:AttemptToSendToTradeCentre(id) hit('send'); transfers[#transfers+1]={kind='habitat',id=id,time=R.clock}; animals[id].inTransit=true; return true end
+function apis.animals:IsUsingContraceptive(id) return animals[id].contraception==true end
+function apis.animals:SetUsingContraceptive(id,value) animals[id].contraception=value; contraceptions[#contraceptions+1]={kind='habitat',id=id} end
+function apis.exhibits:AnimalUIDIsUsingContraceptive(uid) return exhibits[uid].contraception==true end
+function apis.exhibits:SetExhibitAnimalUsingContraceptiveUsingUID(uid,value) exhibits[uid].contraception=value; contraceptions[#contraceptions+1]={kind='exhibit',id=uid} end
 function apis.animals:AnimalGUIDToEntityID(uid) hit('hybrid'); return 0 end
+function apis.exhibits:EntityIsExhibitAnimal(entity) for _,a in pairs(exhibits) do if a.entity==entity then return true end end return false end
+function apis.exhibits:GetAnimalSpecies(entity) for _,a in pairs(exhibits) do if a.entity==entity then return a.sSpecies end end end
 function apis.exhibits:GetAllAnimalIDs() hit('allExhibits'); local ids={} for uid in pairs(exhibits) do ids[#ids+1]=uid end return ids end
 function apis.exhibits:ExhibitAnimalUIDToEntityID(uid) hit('exhibitEntity'); return exhibits[uid] and exhibits[uid].entity or 0 end
 function apis.exhibits:ExhibitAnimalEntityIDToUID(entity) hit('exhibitUid'); for uid,a in pairs(exhibits) do if a.entity==entity then return uid end end end
 function apis.exhibits:GetAnimalParentExhibit(entity) hit('exhibitParent'); for _,a in pairs(exhibits) do if a.entity==entity then return a.enclosure end end return 0 end
 function apis.exhibits:GetUIAnimalListDataForIDs(ids) hit('exhibitRow'); local out={} for _,id in ipairs(ids) do out[id]=exhibits[id] end return out end
+function apis.exhibits:GetExhibitAnimalData(entity) hit('exhibitYears'); for _,a in pairs(exhibits) do if a.entity==entity then return {AgeInYears=a.years or a.age} end end end
 function apis.exhibits:GetExhibitAnimalAgeQuadrant(entity) hit('exhibitAge'); for _,a in pairs(exhibits) do if a.entity==entity then return a.age end end return -1 end
 function apis.exhibits:GetAnimalsInExhibit(entity) hit('exhibitList'); local out={} for _,a in pairs(exhibits) do if a.enclosure==entity then out[#out+1]={nEntityID=a.entity} end end return out end
 function apis.exhibits:CanSendAnimalToTradeCentreUID(uid) hit('exhibitCanSend'); return true end
@@ -70,7 +77,7 @@ function apis.worldserialisation:SaveEntityID(entity) return entity+1000 end
 remap={}
 function apis.worldserialisation:LoadEntityID(token) return remap[token-1000] or token-1000 end
 ''')
-    lua.globals().R = lua.execute((main / 'breederkeeper.runtime.lua').read_text())
+    lua.globals().R = lua.execute((main / 'autostorage.runtime.lua').read_text())
     lua.execute(r'''
 R.Core={UI={Publish=function() fullPublishes=fullPublishes+1 end,
  PublishDelta=function(self,delta) deltaPublishes=deltaPublishes+1; lastDelta=delta end}}

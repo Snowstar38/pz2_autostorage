@@ -6,7 +6,7 @@ local table, math = global.table, global.math
 local next = global.next
 local setmetatable = global.setmetatable
 local api = global.api
-local Policy = require('BreederKeeper.Policy')
+local Policy = require('Autostorage.Policy')
 local Runtime = global.module and global.module(...) or {}
 Runtime.queue,Runtime.rules={},{}
 Runtime.clock,Runtime.nextScan,Runtime.interval,Runtime.mode=0,0,5,'preview'
@@ -19,6 +19,11 @@ local function call(o,n,...)
     if o == nil or type(o[n]) ~= 'function' then error('Unavailable API: '..n) end
     return o[n](o,...)
 end
+local bulkOptions={
+    bulk_habitats_males_on={'habitat','malesOnly',true},bulk_habitats_males_off={'habitat','malesOnly',false},
+    bulk_exhibits_males_on={'exhibit','malesOnly',true},bulk_exhibits_males_off={'exhibit','malesOnly',false},
+    bulk_habitats_contraception_on={'habitat','contraception',true},bulk_habitats_contraception_off={'habitat','contraception',false},
+    bulk_exhibits_contraception_on={'exhibit','contraception',true},bulk_exhibits_contraception_off={'exhibit','contraception',false}}
 local function key(kind,enclosure,species)
     return kind..':'..enclosure..':'..species
 end
@@ -28,6 +33,23 @@ local function exhibitAge(apis,entity,uid)
         error('Unsupported exhibit age for '..tostring(uid)..': '..tostring(age))
     end
     return age
+end
+local function exhibitYears(apis,entity)
+    local data=call(apis.exhibits,'GetExhibitAnimalData',entity)
+    local age=type(data)=='table' and data.AgeInYears
+    if type(age)~='number' or age~=age or age<0 or age==math.huge then error('Exhibit age in years unavailable') end
+    return age
+end
+local function exhibitKeepers(animals)
+    local keep={}
+    for _,a in ipairs(animals) do
+        if a.alive then
+            if a.sex~='male' and a.sex~='female' then error('Exhibit gender unavailable') end
+            local old=keep[a.sex]
+            if not old or a.ageYears>old.ageYears or (a.ageYears==old.ageYears and a.id<old.id) then keep[a.sex]=a end
+        end
+    end
+    return keep
 end
 local function displayName(entity)
     if api and api.ui2 and type(api.ui2.GetEntityName)=='function' then
@@ -124,6 +146,8 @@ function Runtime:_Reset(manager,environment)
     self.hints={}; self.hintKeys={}; self.candidates={}; self.candidateKeys={}; self.claimed={}
     self.watch={}; self.baselines={}; self.receivers={}; self.nextTransfer=0
     self.hasRules=false; self.hasExhibitAgeEvent=false; self.exhibit_birth=false; self.exhibit_age=false
+    self.exhibitBirthEpoch=nil; self.exhibitBirthRules=nil
+    self.exhibitBirthEvents={}
     self.eventSequence=0; self.permissionEpoch=0
     self.ruleRevision=0; self.nextExhibitSignal=0; self.nextExhibitBirth=0
     self.native={}; self.catalogById={}
@@ -214,7 +238,7 @@ end
 function Runtime:_AttachPersistence(apis)
     local lifecycleEpoch=self.lifecycleEpoch
     if not self.persistence and apis and apis.worldserialisation then
-        local Persistence=require('BreederKeeper.Persistence')
+        local Persistence=require('Autostorage.Persistence')
         self.persistence=Persistence.new({events=false,
             capture=function()
                 if lifecycleEpoch~=self.lifecycleEpoch then return {} end
@@ -249,7 +273,19 @@ function Runtime:_AttachLifecycle(apis)
             local fn=function(messages)
                 if lifecycleEpoch~=self.lifecycleEpoch or self.supported~=true or not self.hasRules then return end
                 self.diagnostics.eventsReceived=self.diagnostics.eventsReceived+1
-                if spec.signal then self[spec.signal]=true
+                if spec.signal=='exhibit_birth' then
+                    if self.mode~='active' or type(messages)~='table' then return end
+                    for _,m in pairs(messages) do
+                        if type(m)=='table' and type(m.nAnimalID)=='number' then
+                            local revisions={}
+                            for id,r in pairs(self.rules) do
+                                if r.enabled and r.kind=='exhibit' then revisions[id]=r.revision end
+                            end
+                            self.exhibitBirthEvents[m.nAnimalID]={epoch=self.permissionEpoch,rules=revisions}
+                            self.exhibit_birth=true
+                        end
+                    end
+                elseif spec.signal then self[spec.signal]=true
                 elseif type(messages)=='table' then
                     for _,m in pairs(messages) do
                         if type(m)=='table' and type(m[spec.field])=='number' then
@@ -303,6 +339,7 @@ function Runtime:_Delta(animal)
     end
 end
 function Runtime:_Commands()
+    if #self.queue==0 then return end
     local q=self.queue; self.queue={}
     if #q>0 then self.job=nil end
     for _,c in ipairs(q) do
@@ -328,6 +365,26 @@ function Runtime:_Commands()
             self.hints={}; self.hintKeys={}; self.candidates={}; self.candidateKeys={}
             self.exhibit_birth=false; self.exhibit_age=false
             self.persistenceStatus.dirty=true
+        elseif bulkOptions[action] then
+            local spec=bulkOptions[action]
+            local applied={}
+            for _,a in ipairs(self.catalog or {}) do
+                if a.kind==spec[1] then
+                    local id=key(a.kind,a.enclosure,a.species)
+                    local previous=self.rules[id] or {}
+                    if not applied[id] and (previous[spec[2]]==true)~=spec[3] then
+                        applied[id]=true; self.ruleRevision=self.ruleRevision+1
+                        local rule={id=id,kind=a.kind,enclosure=a.enclosure,species=a.species,
+                            enabled=previous.enabled==true,malesOnly=previous.malesOnly==true,
+                            contraception=previous.contraception==true,sinceEvent=self.eventSequence,revision=self.ruleRevision}
+                        rule[spec[2]]=spec[3]; self.rules[id]=rule
+                        if rule.enabled and rule.kind=='exhibit' then
+                            self.baselines['exhibit:'..rule.enclosure]={kind='exhibit',enclosure=rule.enclosure}
+                        end
+                    end
+                end
+            end
+            self.persistenceStatus.dirty=true
         elseif action=='bulk_habitats_on' or action=='bulk_habitats_off' or
                action=='bulk_exhibits_on' or action=='bulk_exhibits_off' then
             local kind=(action=='bulk_exhibits_on' or action=='bulk_exhibits_off') and 'exhibit' or 'habitat'
@@ -338,7 +395,9 @@ function Runtime:_Commands()
                     local id=key(kind,a.enclosure,a.species)
                     if not applied[id] then
                         applied[id]=true; self.ruleRevision=self.ruleRevision+1
+                        local previous=self.rules[id] or {}
                         self.rules[id]={id=id,kind=kind,enclosure=a.enclosure,species=a.species,
+                            malesOnly=previous.malesOnly==true,contraception=previous.contraception==true,
                             enabled=enabled,sinceEvent=self.eventSequence,revision=self.ruleRevision}
                         if enabled and kind=='exhibit' then
                             self.baselines[kind..':'..a.enclosure]={kind=kind,enclosure=a.enclosure}
@@ -362,7 +421,7 @@ function Runtime:_Commands()
                 local id=key(kind,enclosure,species)
                 self.ruleRevision=self.ruleRevision+1
                 self.rules[id]={id=id,kind=kind,enclosure=enclosure,species=species,
-                    enabled=rule.enabled~=false,sinceEvent=self.eventSequence,revision=self.ruleRevision}
+                    enabled=rule.enabled~=false,malesOnly=rule.malesOnly==true,contraception=rule.contraception==true,sinceEvent=self.eventSequence,revision=self.ruleRevision}
                 if rule.enabled~=false and kind=='exhibit' then self.baselines[kind..':'..enclosure]={kind=kind,enclosure=enclosure}
                 else self.policy.rules[id]=nil end
                 self.nextScan=0
@@ -400,7 +459,8 @@ function Runtime:_Fail(message)
 end
 -- _BeginScan and _ScanStep use only APIs evidenced in the installed game's scripts.
 function Runtime:_BeginScan(apis,full)
-    local job={animals={},native={},tasks={},index=1,names={},scope={},full=full==true}
+    local job={animals={},native={},tasks={},index=1,names={},scope={},full=full==true,
+        birthEpoch=self.exhibitBirthEpoch,birthRules=copy(self.exhibitBirthRules)}
     if full then
         local habitats=call(apis.habitat,'GetHabitats')
         if type(habitats)~='table' then error('Habitat list unavailable') end
@@ -430,6 +490,9 @@ function Runtime:_ScanStep(apis)
     local stop=math.min(#job.tasks,job.index+self.rowsPerFrame-1)
     for i=job.index,stop do
         local task=job.tasks[i]
+        if task.rowRetryAt and self.clock<task.rowRetryAt then
+            job.index=i; return -- Yield until a later tick, never spend retries in one frame.
+        end
         if task.kind=='habitat_list' then
             local ids=call(apis.habitat,'GetAnimalsInHabitat',task.entity)
             if type(ids)~='table' then error('Habitat animals unavailable') end
@@ -455,13 +518,14 @@ function Runtime:_ScanStep(apis)
                     local rows=call(apis.exhibits,'GetUIAnimalListDataForIDs',{uid})
                     local row=type(rows)=='table' and rows[uid]
                     if type(row)~='table' then error('Exhibit record unavailable') end
-                    local age=exhibitAge(apis,entity,uid)
+                    local ageOK,age=pcall(exhibitAge,apis,entity,uid)
+                    if not ageOK then age=1 end -- Presentation only; exact age controls retention.
                     local stable=tostring(uid)
                     local a={id=stable,species=row.sSpecies,enclosure=tostring(enclosure),kind='exhibit',
                         juvenile=age==0,alive=row.bAlive,
                         inStorage=false,inTransit=false,name=row.sName or stable,
                         sex=row.nGender==0 and 'male' or (row.nGender==1 and 'female' or 'unknown'),
-                        mature=age~=0}
+                        mature=age~=0,ageYears=exhibitYears(apis,entity)}
                     job.animals[#job.animals+1]=a
                     job.native[a.id]={entity=entity,uid=uid,kind='exhibit',enclosure=a.enclosure}
                 end
@@ -469,8 +533,23 @@ function Runtime:_ScanStep(apis)
         else
         local id=task.entity
         local rows=call(apis.animals,'GetUIAnimalListDataForIDs',{id})
-        local row=type(rows)=='table' and rows[id]
-        if type(row)~='table' then error('Animal record unavailable') end
+        if type(rows)~='table' then error('Animal records unavailable') end
+        local row=rows[id]
+        if row==nil then
+            -- Habitat membership and UI rows are not an atomic snapshot. A
+            -- loaded zoo may list an entity before its UI row is ready, or an
+            -- animal may disappear between this bounded scan's frames.
+            task.rowAttempts=(task.rowAttempts or 0)+1
+            if task.rowAttempts<3 and call(apis.animals,'DoesAnimalExist',id)==true then
+                task.rowRetryAt=self.clock+.25
+                job.tasks[#job.tasks+1]=task
+            else
+                job.unavailableAnimalRows=(job.unavailableAnimalRows or 0)+1
+                self.diagnostics.unavailableAnimalRows=(self.diagnostics.unavailableAnimalRows or 0)+1
+            end
+            -- Never infer identity, maturity, sex or an action from a missing row.
+        else
+        if type(row)~='table' then error('Animal record invalid') end
         local guid=call(apis.animals,'EntityIDToAnimalGUID',id)
         if guid==nil or tostring(guid)=='' or guid==0 then error('Animal GUID unavailable') end
         if apis.animals.Juvenile==nil or type(row.nAgeGroup)~='number' then error('Age classification unavailable') end
@@ -485,6 +564,7 @@ function Runtime:_ScanStep(apis)
         a.inTransit=transport.bHasTransportJob==true
         job.animals[#job.animals+1]=a
         job.native[a.id]={entity=id,kind='habitat',enclosure=task.enclosure}
+        end
         end
     end
     job.index=stop+1
@@ -504,6 +584,30 @@ function Runtime:_FinishScan(apis,job)
     -- Baselines only initialize exhibit observations; habitat transitions come
     -- directly from native messages. Never cross-product all rules and zoo rows.
     local decision={actions={},pauses={}}
+    -- A birth is a population change, not a maturity transition. Never use the
+    -- event's animal ID (which may be a parent) as a transfer target.
+    if job.birthEpoch==self.permissionEpoch and self.mode=='active' then
+        local groups={}
+        for _,a in ipairs(job.animals) do
+            local k=key(a.kind,a.enclosure,a.species)
+            local r=self.rules[k]
+            if a.kind=='exhibit' and r and r.enabled and job.birthRules and job.birthRules[k]==r.revision then
+                groups[k]=groups[k] or {}; table.insert(groups[k],a)
+            end
+        end
+        for k,animals in pairs(groups) do
+            local keep=exhibitKeepers(animals)
+            for _,a in ipairs(animals) do
+                if a.alive and keep[a.sex]~=a and (not self.rules[k].malesOnly or a.sex=='male') and not self.claimed['exhibit:'..a.id] then
+                    self:_QueueCandidate({id=a.id,kind=a.kind,enclosure=a.enclosure,species=a.species,
+                        ruleId=k,epoch=job.birthEpoch,name=a.name,ruleRevision=self.rules[k].revision})
+                end
+            end
+        end
+    end
+    if job.birthEpoch==self.exhibitBirthEpoch then
+        self.exhibitBirthEpoch=nil; self.exhibitBirthRules=nil
+    end
     for _,a in ipairs(job.animals) do
         if a.kind=='exhibit' then
             local rule=self.rules[key(a.kind,a.enclosure,a.species)]
@@ -549,6 +653,9 @@ function Runtime:_FinishScan(apis,job)
     self.status={mode=self.mode,status=self.mode=='active' and 'Monitoring' or 'Paused',
         animals=catalog,rules=rules,proposals=decision.actions,pauses=decision.pauses,
         capacity={used=used,total=max},exhibitCapacity={used=exhibitUsed,total=exhibitMax},messages={},enclosures={}}
+    if (job.unavailableAnimalRows or 0)>0 then
+        self.status.messages={'Some animals were unavailable and omitted from this scan; Refresh to check again.'}
+    end
     local groups={}
     for _,a in ipairs(catalog) do
         local k=key(a.kind,a.enclosure,a.species)
@@ -564,12 +671,31 @@ function Runtime:_FinishScan(apis,job)
     self:_Publish()
 end
 function Runtime:_Signals()
+    -- Finish the current bounded scan before assigning a birth to a new scan.
+    if self.job then return end
     if self.exhibit_birth and self.clock>=self.nextExhibitBirth then
         self.exhibit_birth=false
         self.nextExhibitBirth=self.clock+10
-        for _,r in pairs(self.rules) do
-            if r.enabled and r.kind=='exhibit' then self.baselines['exhibit:'..r.enclosure]={kind='exhibit',enclosure=r.enclosure} end
+        self.exhibitBirthEpoch=self.mode=='active' and self.permissionEpoch or nil
+        self.exhibitBirthRules={}
+        local apis=self.manager.tWorldAPIs
+        for entity,event in pairs(self.exhibitBirthEvents) do
+            if event.epoch==self.permissionEpoch then
+                local ok,enclosure,species=pcall(function()
+                    if call(apis.exhibits,'EntityIsExhibitAnimal',entity)~=true then return end
+                    return call(apis.exhibits,'GetAnimalParentExhibit',entity),call(apis.exhibits,'GetAnimalSpecies',entity)
+                end)
+                if ok and enclosure and enclosure~=0 and type(species)=='string' then
+                    local id=key('exhibit',tostring(enclosure),species)
+                    local r=self.rules[id]
+                    if r and r.enabled and event.rules[id]==r.revision then
+                        self.baselines['exhibit:'..r.enclosure]={kind='exhibit',enclosure=r.enclosure}
+                        self.exhibitBirthRules[id]=r.revision
+                    end
+                end
+            end
         end
+        self.exhibitBirthEvents={}
     end
     if self.exhibit_age and self.clock>=self.nextExhibitSignal then
         self.exhibit_age=false
@@ -613,6 +739,7 @@ function Runtime:_FinishTarget(apis,job)
         eligible=hint.event=='maturity' and a.alive==true and not a.juvenile and not a.inTransit
     end
     if a.kind=='exhibit' then
+        eligible=false -- Exhibit offspring arrive as adults; only birth reconciliation selects extras.
         if a.juvenile then self.watch[a.id]={kind='exhibit',uid=job.native[a.id].uid,event='exhibit_check'}
         else self.watch[a.id]=nil end
     end
@@ -620,7 +747,7 @@ function Runtime:_FinishTarget(apis,job)
         local old=self.catalogById[a.id]
         for k,v in pairs(a) do old[k]=v end
     end
-    if eligible and not self.claimed[a.kind..':'..a.id] then
+    if eligible and (not rule.malesOnly or a.sex=='male') and not self.claimed[a.kind..':'..a.id] then
         local action={id=a.id,kind=a.kind,enclosure=a.enclosure,species=a.species,ruleId=rule.id,
             epoch=hint.epoch,name=a.name,ruleRevision=rule.revision}
         if self.mode=='active' and hint.permission=='active' then self:_QueueCandidate(action)
@@ -638,15 +765,32 @@ function Runtime:_TryTransfer(apis)
     if action.epoch~=self.permissionEpoch or not rule or not rule.enabled or
         rule.revision~=action.ruleRevision or self.claimed[id] then return end
     self.nextTransfer=self.clock+self.interval
-    self:_Transfer(apis,action)
+    local result=self:_Transfer(apis,action)
+    if result==false then return end
+    if result=='retry' then
+        action.readinessAttempts=(action.readinessAttempts or 0)+1
+        if action.retryDeadline and self.clock>action.retryDeadline then
+            error('Transfer still not ready after retry window expired; automation stopped')
+        end
+        action.retryDeadline=action.retryDeadline or (self.clock+20)
+        if action.readinessAttempts>=4 then error('Game still refused transfer after 4 attempts; automation stopped') end
+        self:_QueueCandidate(action)
+        local animal=(self.catalogById or {})[action.id] or action
+        if action.readinessAttempts==1 then self:_Log(animal,'animal not ready; retry scheduled') end
+        self.status.status='Waiting for transfer readiness'
+        self:_Delta(animal)
+        return
+    end
     self.claimed[id]=true
     local animal=(self.catalogById or {})[action.id] or action
-    self:_Log(animal,'storage request accepted')
+    self:_Log(animal,rule.contraception and 'contraception enabled' or 'storage request accepted')
     self.status.status='Watching maturity events'
-    self.status.messages={'Storage requested: '..(action.name or action.id)..' ('..action.species..')'}
+    self.status.messages={(rule.contraception and 'Contraception enabled: ' or 'Storage requested: ')..(action.name or action.id)..' ('..action.species..')'}
     self:_Delta(animal)
 end
 function Runtime:_Transfer(apis,action)
+    local rule=self.rules[action.ruleId]
+    if not rule or not rule.enabled then error('Animal rule changed') end
     local record=self.native[action.id]
     if not record then error('Animal identity unavailable') end
     if record.kind=='exhibit' then
@@ -659,22 +803,45 @@ function Runtime:_Transfer(apis,action)
         end
         local rows=call(apis.exhibits,'GetUIAnimalListDataForIDs',{uid})
         local row=type(rows)=='table' and rows[uid]
-        local age=exhibitAge(apis,entity,uid)
-        if type(row)~='table' or row.bAlive~=true or row.sSpecies~=action.species or
-           type(age)~='number' or age==0 then
+        if type(row)~='table' or row.bAlive~=true or row.sSpecies~=action.species then
             error('Exhibit candidate changed')
+        end
+        if rule.malesOnly and row.nGender~=0 then return false end
+        -- Re-read the current population immediately before each request. A
+        -- retained parent may have died or moved while this candidate waited.
+        local population={}
+        for _,member in pairs(call(apis.exhibits,'GetAnimalsInExhibit',tonumber(action.enclosure))) do
+            local memberUID=call(apis.exhibits,'ExhibitAnimalEntityIDToUID',member.nEntityID)
+            local data=call(apis.exhibits,'GetUIAnimalListDataForIDs',{memberUID})[memberUID]
+            if data.sSpecies==action.species then
+                population[#population+1]={id=tostring(memberUID),alive=data.bAlive,
+                    sex=data.nGender==0 and 'male' or (data.nGender==1 and 'female' or 'unknown'),
+                    ageYears=exhibitYears(apis,member.nEntityID)}
+            end
+        end
+        local keep=exhibitKeepers(population)
+        for _,parent in pairs(keep) do if parent.id==action.id then return false end end
+        if rule.contraception then
+            if call(apis.exhibits,'AnimalUIDIsUsingContraceptive',uid)~=true then
+                call(apis.exhibits,'SetExhibitAnimalUsingContraceptiveUsingUID',uid,true)
+                if call(apis.exhibits,'AnimalUIDIsUsingContraceptive',uid)~=true then error('Exhibit contraception was not applied') end
+            end
+            return true
         end
         -- Hybrid species need a destructive RemoveAnimal follow-up in the game's UI.
         -- This adapter deliberately pauses those until independently validated.
         local counterpart=call(apis.animals,'AnimalGUIDToEntityID',uid)
         if counterpart~=nil and counterpart~=0 then error('Hybrid exhibit transfer requires manual game action') end
-        if call(apis.exhibits,'CanSendAnimalToTradeCentreUID',uid)~=true then error('Game refused exhibit transfer eligibility') end
         if call(apis.park,'GetNumberOfAnimalsInExhibitTradeCentre')>=call(apis.park,'GetExhibitTradeCentreMaxCapacity') then error('Exhibit storage full') end
-        local accepted=call(apis.exhibits,'AttemptToSendToTradeCentre',uid)==true
-        Policy.ack(self.policy,action.id,accepted,self.clock)
-        if not accepted then error('Game rejected exhibit transfer; automation stopped') end
+        local canSend=call(apis.exhibits,'CanSendAnimalToTradeCentreUID',uid)
+        if canSend==false then return 'retry' end
+        if canSend~=true then error('Exhibit transfer eligibility unavailable') end
+        local accepted=call(apis.exhibits,'AttemptToSendToTradeCentre',uid)
+        if accepted==false then return 'retry' end
+        if accepted~=true then error('Exhibit transfer result unavailable') end
+        Policy.ack(self.policy,action.id,true,self.clock)
         self.status.messages={'Requested exhibit storage for '..action.id}
-        return
+        return true
     end
     local id=record.entity
     if tostring(call(apis.animals,'EntityIDToAnimalGUID',id))~=action.id then error('Animal identity changed') end
@@ -686,11 +853,25 @@ function Runtime:_Transfer(apis,action)
     if type(row)~='table' or type(row.nAgeGroup)~='number' or row.nAgeGroup==apis.animals.Juvenile then
         error('Animal maturation state changed')
     end
-    if call(apis.animals,'CanSendAnimalToTradeCentre',id)~=true then error('Game refused transfer eligibility') end
+    if rule.malesOnly and row.nGender~=0 then return false end
+    local transport=call(apis.animals,'GetAnimalTransportData',id)
+    if type(transport)~='table' then error('Transport state unavailable') end
+    if transport.bHasTransportJob==true then return false end
+    if rule.contraception then
+        if call(apis.animals,'IsUsingContraceptive',id)~=true then
+            call(apis.animals,'SetUsingContraceptive',id,true)
+            if call(apis.animals,'IsUsingContraceptive',id)~=true then error('Contraception was not applied') end
+        end
+        return true
+    end
     if call(apis.park,'GetNumberOfAnimalsInTradeCentre')>=call(apis.park,'GetTradeCentreMaxCapacity') then error('Storage full') end
-    local accepted=call(apis.animals,'AttemptToSendToTradeCentre',id)==true
-    Policy.ack(self.policy,action.id,accepted,self.clock)
-    if not accepted then error('Game rejected transfer; automation stopped') end
+    local canSend=call(apis.animals,'CanSendAnimalToTradeCentre',id)
+    if canSend==false then return 'retry' end
+    if canSend~=true then error('Transfer eligibility unavailable') end
+    local accepted=call(apis.animals,'AttemptToSendToTradeCentre',id)
+    if accepted==false then return 'retry' end
+    if accepted~=true then error('Transfer result unavailable') end
+    Policy.ack(self.policy,action.id,true,self.clock)
     self.status.messages={'Requested storage for '..action.id}
 end
 function Runtime:_Tick(manager,dt)

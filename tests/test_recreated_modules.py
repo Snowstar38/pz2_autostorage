@@ -4,11 +4,11 @@ from runtime_fixture import runtime
 
 lua = runtime()
 main = Path(__file__).resolve().parents[1] / 'src/Autostorage/Main'
-lua.globals().core_source = (main / 'breederkeeper.core.lua').read_text()
+lua.globals().core_source = (main / 'autostorage.core.lua').read_text()
 lua.execute(r'''
 local core
 module=function() core={}; return core end
-assert(load(core_source))('BreederKeeper.Core')
+assert(load(core_source))('Autostorage.Core')
 module=nil
 local modules={}
 require=function(name) return assert(modules[string.lower(name)],name) end

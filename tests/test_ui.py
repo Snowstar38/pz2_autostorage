@@ -3,7 +3,7 @@ from pathlib import Path
 from lupa.lua53 import LuaRuntime
 
 lua = LuaRuntime(unpack_returned_tuples=True)
-source = Path(__file__).resolve().parents[1] / 'src/Autostorage/Main/breederkeeper.ui.lua'
+source = Path(__file__).resolve().parents[1] / 'src/Autostorage/Main/autostorage.ui.lua'
 lua.globals().ui_source = source.read_text(encoding='utf-8')
 lua.execute(r'''
 local globals = _G
@@ -23,7 +23,7 @@ function module()
  end
  return UI
 end
-assert(load(ui_source, 'BreederKeeper.UI', 't', globals))()
+assert(load(ui_source, 'Autostorage.UI', 't', globals))()
 assert(UI.Encode({hello='world'}) == '{"hello":"world"}')
 assert(UI.Encode('a\nb') == '"a\\nb"')
 local patches, command, listeners = {}, nil, {}
@@ -38,7 +38,9 @@ UI:Init(Core)
 assert(Core.UI == UI)
 local settings, readyCalled, publications
 publications = 0
-local HUD = {Init=function(_, init) settings=init end}
+local View = {Init=function(_, init) settings=init end}
+patches['UI2.ViewWrapper'](View)
+local HUD = {Init=function(hud, init) return View.Init(hud,init) end}
 patches['UI.Controllers.HUDUI'](HUD)
 local hud = {
  AddEventListener=function(_, name, count, callback, argument)
@@ -55,8 +57,8 @@ local hud = {
 HUD.Init(hud, {sViewAddress='original'})
 assert(settings.sViewAddress == 'original')
 UI.bMapped = true
-HUD.Init(hud, {fnOnReadyCallback=function() readyCalled=true end})
-assert(settings.sViewAddress == 'coui://UIGameface/BreederKeeperHUD.html')
+HUD.Init(hud, {sViewAddress='coui://UIGameface/HUD.html',fnOnReadyCallback=function() readyCalled=true end})
+assert(settings.sViewAddress == 'coui://UIGameface/AutostorageHUD.html')
 assert(listeners.BKCommand == nil)
 settings.fnOnReadyCallback()
 assert(readyCalled and publications == 1)
@@ -68,14 +70,38 @@ assert(viewDiagnostics.clientAcks==1 and viewDiagnostics.clientSupported and vie
 local beforeRefresh=publications;UI:Attach(hud);assert(publications==beforeRefresh+1,'same ready HUD reattachment refreshes state')
 hud.view='recreated-view';UI:Attach(hud);assert(UI.boundView=='recreated-view','recreated view on same wrapper rebinds')
 local listener = listeners.BKCommand
+local beforeCommands=publications
 listener.callback(listener.argument, 'set_rule_on', '12', 'Buffalo', '34', '56')
 assert(command.enclosureId == '12' and command.species == 'Buffalo')
 assert(command.rule.maleId == '34' and command.rule.femaleId == '56')
 assert(command.rule.enabled and command.mode == 'APPLY')
+listener.callback(listener.argument,'set_rule_on','12','Buffalo','true','false')
+assert(command.rule.malesOnly and command.rule.contraception==false)
+assert(command.rule.maleId==nil and command.rule.femaleId==nil)
+listener.callback(listener.argument,'set_rule_off','12','Buffalo','false','true')
+assert(command.rule.enabled==false and command.rule.malesOnly==false and command.rule.contraception)
 command=nil;listener.callback(listener.argument,'bulk_habitats_on','','','','')
 assert(command.action=='bulk_habitats_on','bulk habitat action reaches runtime through five-arg bridge')
 command=nil;listener.callback(listener.argument,'bulk_exhibits_on','','','','')
 assert(command.action=='bulk_exhibits_on','bulk exhibit action reaches runtime through five-arg bridge')
+for _,kind in ipairs({'habitats','exhibits'}) do
+ for _,option in ipairs({'males','contraception'}) do
+  for _,value in ipairs({'on','off'}) do
+   local action='bulk_'..kind..'_'..option..'_'..value
+   command=nil; listener.callback(listener.argument,action,'','','','')
+   assert(command and command.action==action,'bulk advanced option reaches runtime as one native command')
+  end
+ end
+end
+assert(publications==beforeCommands,'accepted queued commands do not serialize stale full snapshots')
+local originalQueue=Core.Runtime.QueueUICommand
+Core.Runtime.QueueUICommand=function() return false end
+listener.callback(listener.argument,'refresh','','','','')
+assert(publications==beforeCommands+1 and UI.sBridgeError=='Command queue rejected','rejection publishes immediate feedback')
+Core.Runtime.QueueUICommand=function() error('fixture failure') end
+listener.callback(listener.argument,'refresh','','','','')
+assert(publications==beforeCommands+2 and UI.sBridgeError:find('fixture failure'),'queue exceptions publish immediate feedback')
+Core.Runtime.QueueUICommand=originalQueue
 command=nil
 listener.callback(listener.argument, 'unknown_action', '', '', '', '')
 assert(command == nil, 'unknown actions must not reach runtime')

@@ -44,7 +44,7 @@ local function loadModule(name)
 end
 require=loadModule; tryrequire=loadModule
 local entry=require('Database.AutostorageLuaDatabase')
-local core=registered['breederkeeper.core']
+local core=registered['autostorage.core']
 assert(core and core.bBooted,'core boot')
 assert(core.Runtime and core.UI,'both feature modules initialize')
 assert(core.Runtime.policy==nil,'no park access during boot')
@@ -61,7 +61,7 @@ local command=listeners.BKCommand
 command.fn(command.arg,'refresh','','','','',false)
 assert(#core.Runtime.queue==0,'commands rejected before supported park eligibility')
 assert(core.UI.Encode({ok=true,items={1,2}}):find('true'),'JSON encoder under module scope')
-local policy=require('BreederKeeper.Policy')
+local policy=require('Autostorage.Policy')
 local s=policy.new({zooId='z',sessionId='s'})
 local result=policy.evaluate(s,{zooId='z',sessionId='s',complete=true,animals={},capacity={}}, {},0)
 assert(not result.error and #result.actions==0,'policy runs under isolated scope')

@@ -62,7 +62,7 @@ function P.evaluate(state, snapshot, rules, now)
         local a = byId[id]
         if not a or not a.alive or a.inStorage then state.pending[id] = nil
         elseif a.inTransit or pending.accepted or pending.retryAt > now then
-            capacity[a.kind] = math.max(0, capacity[a.kind] - 1)
+            if not pending.contraception then capacity[a.kind] = math.max(0, capacity[a.kind] - 1) end
         end
     end
     local active, groupCounts = {}, {}
@@ -99,7 +99,7 @@ function P.evaluate(state, snapshot, rules, now)
                             end
                             remove = memory.seen[a.id] == 'matured'
                         end
-                        if remove then candidates[#candidates+1] = a end
+                        if remove and (not r.malesOnly or a.sex=='male') then candidates[#candidates+1] = a end
                     end
                     if not memory.seen[a.id] then
                         memory.seen[a.id] = a.juvenile and 'juvenile' or 'baseline'
@@ -111,9 +111,9 @@ function P.evaluate(state, snapshot, rules, now)
                 for _, a in ipairs(candidates) do
                     local p = state.pending[a.id]
                     if not p or (not p.accepted and p.retryAt <= now) then
-                        if capacity[a.kind] > 0 then
-                            capacity[a.kind] = capacity[a.kind] - 1
-                            state.pending[a.id] = {retryAt=now+5,accepted=false}
+                        if r.contraception or capacity[a.kind] > 0 then
+                            if not r.contraception then capacity[a.kind] = capacity[a.kind] - 1 end
+                            state.pending[a.id] = {retryAt=now+5,accepted=false,contraception=r.contraception==true}
                             result.actions[#result.actions+1] = {id=a.id,kind=a.kind,
                                 enclosure=a.enclosure,species=a.species,ruleId=r.id}
                         else pause(r, 'storage capacity unavailable') end
@@ -147,6 +147,6 @@ function P.observe(state, animal, rule, context)
     if previous==nil then memory.seen[animal.id]=animal.juvenile and 'juvenile' or 'baseline'
     elseif previous=='juvenile' and not animal.juvenile then memory.seen[animal.id]='matured' end
     return memory.seen[animal.id]=='matured' and animal.alive and not animal.juvenile and
-        not animal.inStorage and not animal.inTransit, memory.seen[animal.id]
+        not animal.inStorage and not animal.inTransit and (not rule.malesOnly or animal.sex=='male'), memory.seen[animal.id]
 end
 return P

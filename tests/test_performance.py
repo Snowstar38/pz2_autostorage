@@ -12,7 +12,13 @@ assert(catalogSize==6 and counts.allHabitats==1,'explicit discovery catalog')
 for i=1,200 do command({type='enable_habitat',enclosure=tostring(i),species='Warthog',enabled=true}) end
 command({type='enable_transfers'})
 counts={}; local full=fullPublishes; local delta=deltaPublishes
+local ruleTraversals=0
+setmetatable(R.rules,{__pairs=function(t) ruleTraversals=ruleTraversals+1; return next,t,nil end})
+local idleQueue=R.queue; local idlePolicy=R.policy
 for i=1,2000 do step(.016) end
+assert(ruleTraversals==0,'idle ticks never traverse enabled rules')
+assert(R.queue==idleQueue and R.policy==idlePolicy,'idle ticks preserve empty queue and policy without rebuilding either')
+setmetatable(R.rules,nil)
 assert(next(counts)==nil,'200 enabled habitat rules generate no recurring animal/capacity/list calls')
 assert(fullPublishes==full and deltaPublishes==delta,'idle rules publish nothing')
 assert(#R.catalog==catalogSize,'cached catalog retained')
@@ -25,5 +31,13 @@ assert(fullPublishes==full+1,'target event uses delta, not full catalog publicat
 command({type='stop'})
 counts={}; for i=1,1000 do step(.016) end
 assert(next(counts)==nil,'stop returns to inert runtime')
+-- Saved config updates hasRules independently of command processing.
+local saved={configuration={schema=1,transfersEnabled=true,rules={{kind='habitat',enclosure=1003,species='Warthog',enabled=true}}}}
+manager={tWorldAPIs=apis}; environment={}; R:_Reset(manager,environment)
+serialization.load(saved,1); R:_ConfirmCurrentWorld(environment,apis); finish()
+assert(R.hasRules and #R.queue==0 and R.mode=='active','loaded enabled rules need no UI command')
+animals[12].inTransit=false; animals[12].nAgeGroup=2
+emit(1,{{nAnimalEntityID=12}}); step()
+assert(#transfers==2,'loaded automation monitors fresh events with idle command path')
 print('Performance checks passed: 200 enabled rules/2000 ticks=0 native animal scans; one event checks one target')
 ''')

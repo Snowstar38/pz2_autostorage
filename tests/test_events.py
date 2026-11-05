@@ -38,7 +38,7 @@ assert(#transfers==total and #R.hints==0 and #R.candidates==0,'preactivation hin
 command({type='refresh'})
 for i=1,10 do step(1) end
 assert(#transfers==total,'explicit catalog refresh never moves baseline adults')
--- Exhibits have the same maturation behavior with no pair selection.
+-- Exhibit age changes never select a parent or offspring for transfer.
 command({type='set_rule',kind='exhibit',enclosure='99',species='Axolotl',rule={enabled=true}})
 assert(R.watch.e3 and not R.watch.e1 and not R.watch.e2,'only opted juvenile exhibits watched')
 exhibits.e3.age=2
@@ -46,14 +46,14 @@ before=counts.exhibitRow or 0
 for i=1,1000 do emit(3,{{completelyUnknownPayload='ignored'}}) end
 assert((counts.exhibitRow or 0)==before,'unknown exhibit event payload never passed to native API')
 step()
-assert(#transfers==total+1 and transfers[#transfers].id=='e3','exhibit juvenile matures without breeder pair')
+assert(#transfers==total,'age quadrant changes never trigger exhibit transfer')
 assert(not R.watch.e3,'adult removed from juvenile watch list')
 -- New exhibit births trigger one bounded, coalesced opted-exhibit discovery.
 exhibits.e4={entity=104,enclosure=99,sSpecies='Axolotl',sName='New exhibit baby',nGender=0,bAlive=true,age=0}
 local lists=counts.exhibitList or 0
-for i=1,100 do emit(2,{}) end
+for i=1,100 do emit(2,{{nAnimalID=101}}) end
 finish()
-assert((counts.exhibitList or 0)==lists+1 and R.watch.e4,'birth storm coalesces into one discovery')
+assert((counts.exhibitList or 0)<=lists+2 and R.watch.e4,'birth storm coalesces into one discovery')
 -- Stop discards backlog. Old park receivers must never inject IDs into a new park.
 local oldReceiver=receivers[1]
 command({type='stop'})

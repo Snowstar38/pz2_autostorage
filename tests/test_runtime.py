@@ -21,15 +21,15 @@ assert(not pcall(R._Transfer,R,apis,action) and #transfers==0,'juvenile rejected
 animals[12].nAgeGroup=2; capacity=0
 assert(not pcall(R._Transfer,R,apis,action) and #transfers==0,'full capacity rejected')
 capacity=100; animals[12].canSend=false
-assert(not pcall(R._Transfer,R,apis,action) and #transfers==0,'normal game eligibility enforced')
+assert(R:_Transfer(apis,action)=='retry' and #transfers==0,'temporary game eligibility refusal requests bounded retry')
 animals[12].canSend=true
 command({type='set_rule',kind='exhibit',enclosure='99',species='Axolotl',rule={enabled=true}})
 local exhibit={id='e3',kind='exhibit',enclosure='99',species='Axolotl',ruleId='exhibit:99:Axolotl'}
-for _,age in ipairs({-1,.5,4}) do
- exhibits.e3.age=age
- assert(not pcall(R._Transfer,R,apis,exhibit) and #transfers==0,'unknown exhibit age rejected')
+for _,age in ipairs({-1,math.huge,0/0}) do
+ exhibits.e3.years=age
+ assert(not pcall(R._Transfer,R,apis,exhibit) and #transfers==0,'unknown exact exhibit age rejected')
 end
-exhibits.e3.age=2
+exhibits.e3.age=2; exhibits.e3.years=.1
 local hybrid=apis.animals.AnimalGUIDToEntityID
 apis.animals.AnimalGUIDToEntityID=function() return 100 end
 assert(not pcall(R._Transfer,R,apis,exhibit) and #transfers==0,'unsupported hybrid paused safely')

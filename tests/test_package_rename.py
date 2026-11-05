@@ -11,13 +11,16 @@ assert manifest.findtext('ID') == '32cd874b-145a-40bb-8cb8-27de1f2b515d'
 assert manifest.findtext('Version') == '1'
 assert (pack / 'Main/database.autostorageluadatabase.lua').is_file()
 assert not (pack / 'Main/database.breederkeeperluadatabase.lua').exists()
+assert not any('breederkeeper' in p.name.lower() for p in pack.rglob('*') if p.is_file()), 'authored filenames use Autostorage'
+for name in ('core','runtime','policy','persistence','ui'):
+    assert (pack / f'Main/autostorage.{name}.lua').is_file()
 
 lua = runtime()
 lua.execute(r'''
 -- Literal legacy schema: saved by BreederKeeper pack, no package-folder path inside.
 local oldSave={configuration={schema=1,transfersEnabled=true,rules={
- {kind='habitat',species='Warthog',enclosure=1003,enabled=true,breeders={},juvenileIds={}},
- {kind='exhibit',species='Axolotl',enclosure=1099,enabled=false,breeders={},juvenileIds={}}
+ {kind='habitat',species='Warthog',enclosure=1003,enabled=true,malesOnly=true,contraception=true,breeders={},juvenileIds={}},
+ {kind='exhibit',species='Axolotl',enclosure=1099,enabled=false,malesOnly=false,contraception=true,breeders={},juvenileIds={}}
 }}}
 assert(serialization.name=='BreederKeeperState' and serialization.version==1,
  'renamed pack must register the exact previous native serializer identity')
@@ -33,6 +36,9 @@ assert(#R.candidates==0 and #R.hints==0 and next(R.claimed)==nil,'no pending tra
 local resaved={}; serialization.save(resaved)
 assert(resaved.configuration.schema==1 and resaved.configuration.transfersEnabled==true)
 assert(#resaved.configuration.rules==2,'new normal save preserves both migrated rules')
+for _,rule in ipairs(resaved.configuration.rules) do
+ assert(rule.contraception==true and rule.malesOnly==(rule.kind=='habitat'),'v1.2 advanced options survive module and file rename unchanged')
+end
 oldSave.configuration.transfersEnabled=false
 manager={tWorldAPIs=apis}; environment={}; R:_Reset(manager,environment)
 assert(serialization.load(oldSave,1)); R:_ConfirmCurrentWorld(environment,apis); finish()

@@ -3,7 +3,7 @@ from pathlib import Path
 from lupa.lua53 import LuaRuntime
 
 lua = LuaRuntime(unpack_returned_tuples=True)
-source = Path(__file__).resolve().parents[1] / 'src/Autostorage/Main/breederkeeper.persistence.lua'
+source = Path(__file__).resolve().parents[1] / 'src/Autostorage/Main/autostorage.persistence.lua'
 lua.globals().P = lua.execute(source.read_text(encoding='utf-8'))
 lua.execute(r'''
 local registered,unregistered,receivers,removed={}, {}, {}, {}

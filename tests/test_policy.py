@@ -3,7 +3,7 @@ from pathlib import Path
 from lupa import LuaRuntime
 
 lua = LuaRuntime(unpack_returned_tuples=True)
-policy = Path(__file__).resolve().parents[1] / 'src/Autostorage/Main/breederkeeper.policy.lua'
+policy = Path(__file__).resolve().parents[1] / 'src/Autostorage/Main/autostorage.policy.lua'
 lua.globals().P = lua.execute(policy.read_text(encoding='utf-8'))
 lua.execute(r'''
 local function animal(id, juvenile, kind)
